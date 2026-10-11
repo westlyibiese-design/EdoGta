@@ -53,19 +53,30 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Set up Android SDK command-line tools
-        uses: android-actions/setup-android@v3
-
       - name: Install Android SDK components
         shell: bash
         run: |
-          set -euo pipefail
-          : "${ANDROID_HOME:?ANDROID_HOME is not set by setup-android}"
-          SDKMANAGER="$(command -v sdkmanager || true)"
-          [ -n "$SDKMANAGER" ] || SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
-          [ -x "$SDKMANAGER" ] || { echo "::error::sdkmanager not found. Android command-line tools were not installed."; exit 1; }
-          yes | "$SDKMANAGER" --licenses > /dev/null || true
-          "$SDKMANAGER" "platform-tools" "build-tools;${ANDROID_BUILD_TOOLS}" "platforms;${ANDROID_PLATFORM}"
+          # GitHub's ubuntu-24.04 runner already ships the Android SDK and command-line tools
+          # (ANDROID_HOME). We only accept licenses and add the pieces Godot 4.4.1 needs.
+          # 'yes | sdkmanager' makes 'yes' die with SIGPIPE, so turn off -e / pipefail here
+          # and check the real exit codes by hand.
+          set +e +o pipefail
+          if [ -z "${ANDROID_HOME:-}" ] || [ ! -d "$ANDROID_HOME" ]; then
+            echo "::error::ANDROID_HOME is not set or does not exist on this runner."; exit 1
+          fi
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDKMANAGER" ]; then
+            echo "::error::sdkmanager not found at $SDKMANAGER. The runner image has no Android command-line tools."; exit 1
+          fi
+
+          yes | "$SDKMANAGER" --licenses > /dev/null 2>&1
+
+          yes | "$SDKMANAGER" --install "platform-tools" "build-tools;${ANDROID_BUILD_TOOLS}" "platforms;${ANDROID_PLATFORM}"
+          rc=${PIPESTATUS[1]}
+          if [ "$rc" -ne 0 ]; then
+            echo "::error::sdkmanager failed to install platform-tools, build-tools ${ANDROID_BUILD_TOOLS} and ${ANDROID_PLATFORM} (exit code $rc). See the log above."; exit 1
+          fi
+
           [ -x "$ANDROID_HOME/platform-tools/adb" ] || { echo "::error::platform-tools/adb missing after install."; exit 1; }
           [ -d "$ANDROID_HOME/build-tools/${ANDROID_BUILD_TOOLS}" ] || { echo "::error::build-tools ${ANDROID_BUILD_TOOLS} missing after install."; exit 1; }
           [ -d "$ANDROID_HOME/platforms/${ANDROID_PLATFORM}" ] || { echo "::error::platform ${ANDROID_PLATFORM} missing after install."; exit 1; }

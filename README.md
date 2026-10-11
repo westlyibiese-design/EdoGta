@@ -31,7 +31,7 @@ EdoGta/
 ├── .gitignore                            Ignores .godot/, build/, keystores, APKs
 ├── .github/workflows/android-build.yml   CI: builds a debug APK
 ├── assets/
-│   └── icon.svg                          App icon
+│   └── icon.png                          App icon (512x512, transparent corners)
 └── scenes/
     ├── main/main.tscn                    Main scene (entry point)
     ├── environment/test_road.tscn        Ground, road, markings, trees, buildings
@@ -128,8 +128,8 @@ Each step prints a `::error::` message that says what is missing if it fails.
 
 - None of the Phase 1A settings need editor-generated values. The workflow creates its own debug keystore.
 - **Release builds are not set up**: a signed release APK/AAB needs your own release keystore, added later via GitHub Secrets. Do not commit a keystore.
-- Optional: open the project once in the Godot 4.4.1 editor and commit the generated `assets/icon.svg.import`; CI creates it automatically otherwise.
-- Optional: set custom adaptive launcher icons in the export preset (the SVG icon is used for now).
+- Optional: open the project once in the Godot 4.4.1 editor and commit the generated `assets/icon.png.import`; CI creates it automatically otherwise.
+- Optional: set custom adaptive launcher icons in the export preset (the PNG icon is used for now).
 
 ## Deliberately reserved for Phase 1B (not in this phase)
 

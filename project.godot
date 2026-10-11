@@ -9,7 +9,7 @@ config/name="EdoGTA"
 config/description="EdoGTA - a 3D open-world driving game set in Edo State, Nigeria."
 run/main_scene="res://scenes/main/main.tscn"
 config/features=PackedStringArray("4.4", "Mobile")
-config/icon="res://assets/icon.svg"
+config/icon="res://assets/icon.png"
 
 [display]
 
