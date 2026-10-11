@@ -1,0 +1,74 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/vehicle/car_controller.gd" id="1_ctrl"]
+[ext_resource type="Script" path="res://scripts/vehicle/camry_visuals.gd" id="2_vis"]
+[ext_resource type="PackedScene" path="res://assets/vehicles/camry_2006/camry_2006_game.glb" id="3_model"]
+
+[sub_resource type="BoxShape3D" id="Shape_body"]
+size = Vector3(1.8, 1.1, 4.7)
+
+[node name="CamryCar" type="VehicleBody3D"]
+mass = 1000.0
+center_of_mass_mode = 1
+center_of_mass = Vector3(0, 0.3, 0)
+can_sleep = false
+linear_damp = 0.05
+angular_damp = 1.0
+script = ExtResource("1_ctrl")
+wheelbase = 2.775
+
+[node name="Collision" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0.06)
+shape = SubResource("Shape_body")
+
+[node name="Visual" type="Node3D" parent="."]
+script = ExtResource("2_vis")
+
+[node name="Model" parent="Visual" instance=ExtResource("3_model")]
+
+[node name="WheelFrontLeft" type="VehicleWheel3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.7816, 0.53, -1.3875)
+use_as_traction = false
+use_as_steering = true
+wheel_roll_influence = 0.1
+wheel_radius = 0.33
+wheel_rest_length = 0.2
+wheel_friction_slip = 10.5
+suspension_travel = 0.2
+suspension_stiffness = 50.0
+
+[node name="WheelFrontRight" type="VehicleWheel3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.7816, 0.53, -1.3875)
+use_as_traction = false
+use_as_steering = true
+wheel_roll_influence = 0.1
+wheel_radius = 0.33
+wheel_rest_length = 0.2
+wheel_friction_slip = 10.5
+suspension_travel = 0.2
+suspension_stiffness = 50.0
+
+[node name="WheelRearLeft" type="VehicleWheel3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.7816, 0.53, 1.3875)
+use_as_traction = true
+use_as_steering = false
+wheel_roll_influence = 0.1
+wheel_radius = 0.33
+wheel_rest_length = 0.2
+wheel_friction_slip = 10.5
+suspension_travel = 0.2
+suspension_stiffness = 50.0
+
+[node name="WheelRearRight" type="VehicleWheel3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.7816, 0.53, 1.3875)
+use_as_traction = true
+use_as_steering = false
+wheel_roll_influence = 0.1
+wheel_radius = 0.33
+wheel_rest_length = 0.2
+wheel_friction_slip = 10.5
+suspension_travel = 0.2
+suspension_stiffness = 50.0
+
+[node name="CameraMount" type="Marker3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.978148, 0.207912, 0, -0.207912, 0.978148, 0, 3.2, 7.5)

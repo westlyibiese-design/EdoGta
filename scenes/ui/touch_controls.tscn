@@ -65,3 +65,11 @@ script = ExtResource("2_btn")
 glyph = 4
 caption = "RESET"
 slide_in = false
+
+[node name="EnvToggle" type="Node2D" parent="."]
+position = Vector2(1220, 150)
+action = "toggle_environment"
+script = ExtResource("2_btn")
+glyph = 4
+caption = "ENV"
+slide_in = false

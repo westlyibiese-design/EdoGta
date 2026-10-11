@@ -1,0 +1,15 @@
+{
+  "file": "camry_2006_game.glb",
+  "units": "metres", "up": "+Y", "forward": "-Z", "right": "+X",
+  "origin": "ground level, centred between the four wheel centres",
+  "wheel_nodes": {
+    "Wheel_FL": [-0.7816, 0.3298, -1.3875],
+    "Wheel_FR": [0.7816, 0.3298, -1.3875],
+    "Wheel_RL": [-0.7816, 0.3298, 1.3875],
+    "Wheel_RR": [0.7816, 0.3298, 1.3875]
+  },
+  "wheel_radius": 0.33, "tyre_width": 0.228, "wheelbase": 2.775, "track": 1.563,
+  "body_bounds": {"x": [-1.022, 1.022], "y": [0.101, 1.461], "z": [-2.344, 2.464]},
+  "triangles": 33309, "materials": 25,
+  "note": "Measured from file data; not yet checked in the Godot editor."
+}

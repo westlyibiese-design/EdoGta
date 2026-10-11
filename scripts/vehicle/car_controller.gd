@@ -3,9 +3,9 @@ extends VehicleBody3D
 ##
 ## Reads the named input actions below. Steering uses VehicleBody3D.steering
 ## (the VehicleWheel3D children give grip, suspension and visual wheel motion).
-## Forward thrust and braking are applied as real forces in m/s^2 with
-## apply_central_force (engine_force and brake are kept at 0): their units are
-## easy to get wrong, and the first Phase 1B build barely moved because of it.
+## Forward thrust and braking are applied as acceleration in m/s^2 by changing
+## linear_velocity directly each physics step (engine_force and brake are kept at 0):
+## their units are easy to get wrong, and the first Phase 1B build barely moved because of it.
 ## Thrust only applies while at least one wheel touches the ground.
 ##
 ## Input actions (defined in project.godot; touch buttons feed the same actions):
@@ -183,12 +183,14 @@ func _update_drive(delta: float) -> void:
 
 	_last_thrust = 0.0
 	if _wheels_grounded > 0:
-		var force: float = thrust * mass
+		var accel_now: float = thrust
 		if _decel > 0.0 and absf(forward_speed) > 0.001:
 			# Never decelerate by more than what stops the car within this physics step.
 			var decel_now: float = minf(_decel, absf(forward_speed) / delta)
-			force -= signf(forward_speed) * decel_now * mass
-		apply_central_force(-global_transform.basis.z * force)
+			accel_now -= signf(forward_speed) * decel_now
+		# Phase 2: change the car's velocity directly (same result as a force of accel_now * mass)
+		# so driving does not depend on how VehicleBody3D scales forces or engine_force.
+		linear_velocity += -global_transform.basis.z * accel_now * delta
 		_last_thrust = thrust
 
 

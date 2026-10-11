@@ -4,6 +4,17 @@ EdoGTA is a 3D open-world driving game for Android, inspired by the free-roaming
 
 **Current status: Phase 1B (playable driving prototype).** The placeholder car now drives along the test road with acceleration, braking, reverse and steering, using Android touch buttons (or the keyboard on desktop) and a smooth third-person follow camera. Phase 1A's project foundation, Android export preset and GitHub Actions workflow are unchanged. **Nothing from Phase 1B has been run in Godot, built into an APK or tested on a device yet** - see "What was verified in Phase 1B".
 
+## Phase 2: Camry car, HDRI skies, drive fix
+
+**Status: authored without Godot; nothing in this section has been run in Godot or on a phone yet.**
+
+- **Car**: `scenes/player/camry_car.tscn` (VehicleBody3D, same `car_controller.gd`, 4 VehicleWheel3D, one box collider) replaces the placeholder in `main.tscn` (node `PlayerCar`; `placeholder_car.tscn` is kept untouched as a fallback). The model is `assets/vehicles/camry_2006/camry_2006_game.glb`: metres, Y-up, forward -Z, origin on the ground below the wheelbase centre, black paint, four separate `Wheel_*` meshes. At start `scripts/vehicle/camry_visuals.gd` moves each wheel mesh under its VehicleWheel3D so it steers, spins and follows the suspension. Measurements are in `camry_2006_specs.json` (wheel radius 0.33 m, wheelbase 2.775 m, track 1.563 m).
+- **Drive fix**: `car_controller.gd` now changes `linear_velocity` directly by `accel * delta` instead of `apply_central_force`, so driving no longer depends on how VehicleBody3D scales forces. Steering, braking, reverse rules and tuning variables are unchanged. The HUD debug line now also shows the last touch (finger, position, which button it hit).
+- **Skies**: `assets/hdri/ostrich_road_1k.exr` (road, default) and `aarfontein_pan_1k.exr` (desert). `scripts/world/environment_switcher.gd` on `WorldEnvironment` swaps sky, fog, ground colour and hides trees/buildings in the desert. Toggle with **E** or the **ENV** touch button (new input action `toggle_environment`).
+- **Not done**: no new city models (the white block buildings and trees are still the Phase 1A placeholders, with no collision); no interior camera; no collision shape tuned to the model beyond one box.
+
+If the car still does not move on a phone, hold GAS and read the HUD debug lines: `gas 0.0` plus a `touch ... -> accelerate` line means the touch hit the button but the action did not register; `no button` means the touch missed the buttons; `gas 1.0` with `speed` stuck at 0 means the physics side is blocking it.
+
 ## Pinned versions and identifiers
 
 | Item | Value |
@@ -247,3 +258,8 @@ Checked (static, scripted, no Godot available in the authoring environment):
 - Wheel geometry: wheel centres sit 0.35 m (the tyre radius) above the road at suspension rest, and the collision box bottom is 0.35 m above the body origin.
 
 **Not verified:** the GDScript has not been parsed or run by Godot (so no headless validation, no scene load, no physics behaviour), no APK was built, the GitHub Actions workflow was not run, and nothing was tested on a device or in the desktop editor. The workflow's headless validation step will be the first real parse check.
+
+## Credits
+
+- **Car model**: "2006 Toyota Camry 24 G Dignis Edition" by tonielpro520, https://sketchfab.com/3d-models/2006-toyota-camry-24-g-dignis-edition-c3181c2d916b4298a6eab78ecfdcb7a6, licensed CC BY 4.0 (http://creativecommons.org/licenses/by/4.0/). Modified for EdoGTA (units, orientation, wheels split into separate meshes, black paint, adjusted materials). Full note: `assets/vehicles/camry_2006/CREDITS.md`. Show this credit in the game's credits screen before release.
+- **Skies**: `assets/hdri/` (see `assets/hdri/CREDITS.md`).

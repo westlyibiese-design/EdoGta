@@ -22,6 +22,7 @@ const CarController = preload("res://scripts/vehicle/car_controller.gd")
 @onready var _accelerate: PadButton = $Accelerate
 @onready var _brake: PadButton = $Brake
 @onready var _reset: PadButton = $Reset
+@onready var _env_toggle: PadButton = $EnvToggle
 @onready var _speed_label: Label = $SpeedLabel
 @onready var _debug_label: Label = $DebugLabel
 
@@ -29,10 +30,11 @@ var _car: CarController = null
 var _last_kmh: int = -1
 var _pads: Array = []
 var _finger_pad: Dictionary = {}
+var _last_touch: String = "touch: none yet"
 
 
 func _ready() -> void:
-	_pads = [_steer_left, _steer_right, _accelerate, _brake, _reset]
+	_pads = [_steer_left, _steer_right, _accelerate, _brake, _reset, _env_toggle]
 	if not vehicle.is_empty():
 		_car = get_node_or_null(vehicle) as CarController
 	_speed_label.visible = _car != null
@@ -49,14 +51,16 @@ func _process(_delta: float) -> void:
 		_last_kmh = kmh
 		_speed_label.text = "%d km/h" % kmh
 	if show_debug:
-		_debug_label.text = _car.debug_text()
+		_debug_label.text = _car.debug_text() + "\n" + _last_touch
 
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:
 		var touch: InputEventScreenTouch = event as InputEventScreenTouch
 		if touch.pressed:
-			_finger_pad[touch.index] = _pad_at(event, false)
+			var hit: PadButton = _pad_at(event, false)
+			_finger_pad[touch.index] = hit
+			_last_touch = "touch %d (%d,%d) -> %s" % [touch.index, int(touch.position.x), int(touch.position.y), hit.action if hit != null else "no button"]
 		else:
 			_finger_pad.erase(touch.index)
 		_sync_actions()
@@ -125,6 +129,10 @@ func _layout() -> void:
 	# Reset: small, top-right, out of the way of driving thumbs.
 	_reset.set_radius(reset_r)
 	_reset.position = Vector2(view.x - margin - reset_r, margin + reset_r)
+
+	# Environment toggle: small, under RESET.
+	_env_toggle.set_radius(reset_r)
+	_env_toggle.position = Vector2(view.x - margin - reset_r, margin + reset_r * 3.0 + gap)
 
 	_speed_label.position = Vector2(margin, margin * 0.6)
 	_debug_label.position = Vector2(margin, margin * 0.6 + 40.0)
