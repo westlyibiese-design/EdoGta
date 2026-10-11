@@ -114,7 +114,7 @@ What it does, in order:
 1. Checks that `project.godot`, `export_presets.cfg`, the "Android" preset and the package ID are present.
 2. Installs JDK 17 and the Android SDK components (platform-tools, build-tools 35.0.1, platform android-35), and checks each one exists.
 3. Downloads Godot 4.4.1 and its export templates from the official GitHub release, verifies the SHA-512 checksums, and installs the Android templates into `~/.local/share/godot/export_templates/4.4.1.stable/`.
-4. Generates a throw-away **debug keystore on the runner** and writes Godot's editor settings (SDK, JDK and keystore paths).
+4. Sets the Android version code to the workflow run number, loads the **permanent signing key** from GitHub Secrets (or, if the secrets are missing, makes a throw-away key and warns), and writes Godot's editor settings (SDK, JDK and keystore paths).
 5. Imports the project, validates it headless (loads the main scene and fails on any engine/script error), then exports the debug APK.
 6. Uploads the APK as an artifact. Logs are uploaded separately, even when the build fails.
 
@@ -124,10 +124,31 @@ Each step prints a `::error::` message that says what is missing if it fails.
 
 **This workflow has not been run yet.** No APK has been built or tested.
 
+## Signing and updating (installing a new build over the old one)
+
+Android only lets a new APK replace an installed app when **all three** match: the package ID (`com.westly.edogta`), the **same signing key**, and a version code that is not lower. The workflow sets the version code from the run number automatically. For the key, create **one permanent keystore, once**, and keep it forever.
+
+**Warning:** if you lose this keystore or its password you can never update installed copies of the app - users would have to uninstall and reinstall. Keep a backup somewhere safe (not in the repository) and never commit it (`.gitignore` already blocks `*.keystore`).
+
+One-time setup (Replit Shell):
+
+1. Create the keystore outside the repo folder. Use one password for both prompts, avoid `"` and `\` in it, and press Enter when asked for the key password:
+   ```
+   mkdir -p ~/workspace/edogta-keys && cd ~/workspace/edogta-keys
+   keytool -genkeypair -v -keystore edogta-release.keystore -alias edogta -keyalg RSA -keysize 2048 -validity 10000
+   ```
+   The alias must stay `edogta` (it is set in the workflow as `SIGNING_KEY_ALIAS`).
+2. Add two GitHub repository secrets (repo -> Settings -> Secrets and variables -> Actions -> New repository secret):
+   - `ANDROID_KEYSTORE_BASE64` - the keystore file encoded as base64 (`base64 -w0 edogta-release.keystore`)
+   - `ANDROID_KEYSTORE_PASSWORD` - the keystore password
+3. Re-run the workflow. The log says "Signing with the permanent EdoGTA key". Without the secrets, the log shows a warning and the APK cannot be installed over a previous build.
+
+The first APK signed with the permanent key will not install over an older APK signed with a throw-away key: uninstall the old app once. Every build after that updates cleanly.
+
 ## Manual configuration still needed
 
-- None of the Phase 1A settings need editor-generated values. The workflow creates its own debug keystore.
-- **Release builds are not set up**: a signed release APK/AAB needs your own release keystore, added later via GitHub Secrets. Do not commit a keystore.
+- None of the Phase 1A settings need editor-generated values.
+- **Permanent signing key**: required for in-place updates - see "Signing and updating" above. A Play Store release (AAB, release export) is not set up; the workflow still produces a debug-export APK, now signed with your permanent key.
 - Optional: open the project once in the Godot 4.4.1 editor and commit the generated `assets/icon.png.import`; CI creates it automatically otherwise.
 - Optional: set custom adaptive launcher icons in the export preset (the PNG icon is used for now).
 

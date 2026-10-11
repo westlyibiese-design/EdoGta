@@ -1,7 +1,8 @@
 name: Android Build (EdoGTA debug APK)
 
 # Builds a debug APK of EdoGTA with Godot 4.4.1-stable and uploads it as a
-# downloadable workflow artifact. Debug signing only - no secrets are used.
+# downloadable workflow artifact. Signed with a permanent key kept in GitHub Secrets
+# (ANDROID_KEYSTORE_BASE64 / ANDROID_KEYSTORE_PASSWORD); falls back to a throw-away key without them.
 # Runs on every push to main/master and can be started manually from the
 # Actions tab ("Run workflow").
 
@@ -24,6 +25,8 @@ env:
   ANDROID_BUILD_TOOLS: "35.0.1"
   ANDROID_PLATFORM: "android-35"
   EXPORT_PRESET: "Android"
+  # Alias of the permanent signing key (see README "Signing and updating"). Not secret.
+  SIGNING_KEY_ALIAS: "edogta"
   APK_PATH: "build/EdoGTA-debug.apk"
 
 jobs:
@@ -126,15 +129,40 @@ jobs:
 
           "$GODOT_BIN" --version
 
-      - name: Configure Godot editor settings for Android export
+      - name: Set Android version code from run number
         shell: bash
         run: |
           set -euo pipefail
-          # Debug keystore is generated here, on the runner, and is never committed.
-          KEYSTORE="$RUNNER_TEMP/debug.keystore"
-          keytool -genkeypair -v -keystore "$KEYSTORE" -storepass android -keypass android \
-            -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 \
-            -dname "CN=Android Debug,O=Android,C=US" > /dev/null
+          # Android only installs an update over an existing app if the version code is not lower.
+          sed -i "s/^version\/code=.*/version\/code=${{ github.run_number }}/" export_presets.cfg
+          grep '^version/code=' export_presets.cfg
+
+      - name: Configure signing key and Godot editor settings
+        shell: bash
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          KEYSTORE="$RUNNER_TEMP/signing.keystore"
+          if [ -n "${KEYSTORE_B64:-}" ] && [ -n "${KEYSTORE_PASS:-}" ]; then
+            case "$KEYSTORE_PASS" in
+              *\"*|*\\*) echo "::error::ANDROID_KEYSTORE_PASSWORD must not contain double quotes or backslashes."; exit 1;;
+            esac
+            printf '%s' "$KEYSTORE_B64" | base64 -d > "$KEYSTORE" || { echo "::error::ANDROID_KEYSTORE_BASE64 is not valid base64."; exit 1; }
+            KEY_ALIAS="$SIGNING_KEY_ALIAS"
+            KEY_PASS="$KEYSTORE_PASS"
+            keytool -list -keystore "$KEYSTORE" -storepass "$KEY_PASS" -alias "$KEY_ALIAS" > /dev/null 2>&1 || {
+              echo "::error::Could not open the permanent keystore with alias '$KEY_ALIAS'. Check ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD and the alias."; exit 1; }
+            echo "Signing with the permanent EdoGTA key (alias $KEY_ALIAS). Updates will install over older builds."
+          else
+            echo "::warning::Signing secrets not set - using a one-off throw-away key. This APK will NOT install over a previous build; uninstall the old app first. See README 'Signing and updating'."
+            KEY_ALIAS="androiddebugkey"
+            KEY_PASS="android"
+            keytool -genkeypair -v -keystore "$KEYSTORE" -storepass "$KEY_PASS" -keypass "$KEY_PASS" \
+              -alias "$KEY_ALIAS" -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US" > /dev/null
+          fi
 
           mkdir -p "$HOME/.config/godot"
           cat > "$HOME/.config/godot/editor_settings-4.4.tres" <<EOF
@@ -144,8 +172,8 @@ jobs:
           export/android/java_sdk_path = "${JAVA_HOME}"
           export/android/android_sdk_path = "${ANDROID_HOME}"
           export/android/debug_keystore = "${KEYSTORE}"
-          export/android/debug_keystore_user = "androiddebugkey"
-          export/android/debug_keystore_pass = "android"
+          export/android/debug_keystore_user = "${KEY_ALIAS}"
+          export/android/debug_keystore_pass = "${KEY_PASS}"
           EOF
           sed 's#debug_keystore_pass = .*#debug_keystore_pass = "(hidden)"#' "$HOME/.config/godot/editor_settings-4.4.tres"
 
