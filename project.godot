@@ -1,0 +1,27 @@
+; Engine configuration file.
+; EdoGTA - pinned to Godot 4.4.1-stable (see README.md and .github/workflows/android-build.yml)
+
+config_version=5
+
+[application]
+
+config/name="EdoGTA"
+config/description="EdoGTA - a 3D open-world driving game set in Edo State, Nigeria."
+run/main_scene="res://scenes/main/main.tscn"
+config/features=PackedStringArray("4.4", "Mobile")
+config/icon="res://assets/icon.svg"
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+window/handheld/orientation=4
+
+[rendering]
+
+renderer/rendering_method="mobile"
+renderer/rendering_method.mobile="mobile"
+textures/vram_compression/import_etc2_astc=true
+lights_and_shadows/directional_shadow/size=2048

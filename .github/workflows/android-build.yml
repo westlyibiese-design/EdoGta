@@ -1,0 +1,187 @@
+name: Android Build (EdoGTA debug APK)
+
+# Builds a debug APK of EdoGTA with Godot 4.4.1-stable and uploads it as a
+# downloadable workflow artifact. Debug signing only - no secrets are used.
+# Runs on every push to main/master and can be started manually from the
+# Actions tab ("Run workflow").
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-build-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Pinned versions - keep in sync with README.md, project.godot ("4.4") and export_presets.cfg.
+  GODOT_VERSION: "4.4.1"
+  GODOT_TEMPLATE_DIR_NAME: "4.4.1.stable"
+  ANDROID_BUILD_TOOLS: "35.0.1"
+  ANDROID_PLATFORM: "android-35"
+  EXPORT_PRESET: "Android"
+  APK_PATH: "build/EdoGTA-debug.apk"
+
+jobs:
+  build-apk:
+    name: Export debug APK
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Pre-flight - project and export preset files
+        shell: bash
+        run: |
+          set -euo pipefail
+          [ -f project.godot ] || { echo "::error::project.godot not found in the repository root."; exit 1; }
+          [ -f export_presets.cfg ] || { echo "::error::export_presets.cfg not found. The Android export preset must be committed."; exit 1; }
+          grep -q '^name="Android"' export_presets.cfg || { echo "::error::export_presets.cfg has no preset named \"Android\" (the workflow exports preset \"${EXPORT_PRESET}\")."; exit 1; }
+          grep -q '^package/unique_name="com.westly.edogta"' export_presets.cfg || { echo "::error::Android package/unique_name is not com.westly.edogta in export_presets.cfg."; exit 1; }
+          grep -q '^run/main_scene=' project.godot || { echo "::error::project.godot has no run/main_scene set."; exit 1; }
+          echo "Project files look consistent."
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK command-line tools
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK components
+        shell: bash
+        run: |
+          set -euo pipefail
+          : "${ANDROID_HOME:?ANDROID_HOME is not set by setup-android}"
+          SDKMANAGER="$(command -v sdkmanager || true)"
+          [ -n "$SDKMANAGER" ] || SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          [ -x "$SDKMANAGER" ] || { echo "::error::sdkmanager not found. Android command-line tools were not installed."; exit 1; }
+          yes | "$SDKMANAGER" --licenses > /dev/null || true
+          "$SDKMANAGER" "platform-tools" "build-tools;${ANDROID_BUILD_TOOLS}" "platforms;${ANDROID_PLATFORM}"
+          [ -x "$ANDROID_HOME/platform-tools/adb" ] || { echo "::error::platform-tools/adb missing after install."; exit 1; }
+          [ -d "$ANDROID_HOME/build-tools/${ANDROID_BUILD_TOOLS}" ] || { echo "::error::build-tools ${ANDROID_BUILD_TOOLS} missing after install."; exit 1; }
+          [ -d "$ANDROID_HOME/platforms/${ANDROID_PLATFORM}" ] || { echo "::error::platform ${ANDROID_PLATFORM} missing after install."; exit 1; }
+          echo "Android SDK ready at $ANDROID_HOME"
+
+      - name: Install Godot ${{ env.GODOT_VERSION }} and Android export templates
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable"
+          BIN_ZIP="Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          TPZ="Godot_v${GODOT_VERSION}-stable_export_templates.tpz"
+          WORK="$RUNNER_TEMP/godot-download"
+          mkdir -p "$WORK" "$HOME/godot"
+          cd "$WORK"
+
+          curl -fsSL --retry 3 -o "$BIN_ZIP" "$BASE/$BIN_ZIP"
+          curl -fsSL --retry 3 -o "$TPZ" "$BASE/$TPZ"
+          curl -fsSL --retry 3 -o SHA512-SUMS.txt "$BASE/SHA512-SUMS.txt"
+
+          # Verify both downloads against the official checksum list.
+          for f in "$BIN_ZIP" "$TPZ"; do
+            awk -v f="$f" '$2 == f' SHA512-SUMS.txt > "$f.sha512"
+            [ -s "$f.sha512" ] || { echo "::error::$f is not listed in the official SHA512-SUMS.txt."; exit 1; }
+            sha512sum -c "$f.sha512" || { echo "::error::Checksum mismatch for $f."; exit 1; }
+          done
+
+          unzip -q -o "$BIN_ZIP" -d "$HOME/godot"
+          GODOT_BIN="$HOME/godot/Godot_v${GODOT_VERSION}-stable_linux.x86_64"
+          chmod +x "$GODOT_BIN"
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+
+          # The .tpz is a zip with a top-level "templates/" folder. Godot looks for
+          # templates in ~/.local/share/godot/export_templates/<version>.<status>/
+          TEMPLATE_DIR="$HOME/.local/share/godot/export_templates/${GODOT_TEMPLATE_DIR_NAME}"
+          mkdir -p "$TEMPLATE_DIR"
+          unzip -q -o -j "$TPZ" \
+            "templates/android_debug.apk" "templates/android_release.apk" \
+            "templates/android_source.zip" "templates/version.txt" \
+            -d "$TEMPLATE_DIR"
+
+          for f in android_debug.apk android_release.apk version.txt; do
+            [ -s "$TEMPLATE_DIR/$f" ] || { echo "::error::Export template $f missing in $TEMPLATE_DIR."; exit 1; }
+          done
+          [ "$(tr -d '[:space:]' < "$TEMPLATE_DIR/version.txt")" = "${GODOT_TEMPLATE_DIR_NAME}" ] || {
+            echo "::error::Template version.txt does not match ${GODOT_TEMPLATE_DIR_NAME}."; exit 1; }
+
+          "$GODOT_BIN" --version
+
+      - name: Configure Godot editor settings for Android export
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Debug keystore is generated here, on the runner, and is never committed.
+          KEYSTORE="$RUNNER_TEMP/debug.keystore"
+          keytool -genkeypair -v -keystore "$KEYSTORE" -storepass android -keypass android \
+            -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=Android Debug,O=Android,C=US" > /dev/null
+
+          mkdir -p "$HOME/.config/godot"
+          cat > "$HOME/.config/godot/editor_settings-4.4.tres" <<EOF
+          [gd_resource type="EditorSettings" format=3]
+
+          [resource]
+          export/android/java_sdk_path = "${JAVA_HOME}"
+          export/android/android_sdk_path = "${ANDROID_HOME}"
+          export/android/debug_keystore = "${KEYSTORE}"
+          export/android/debug_keystore_user = "androiddebugkey"
+          export/android/debug_keystore_pass = "android"
+          EOF
+          sed 's#debug_keystore_pass = .*#debug_keystore_pass = "(hidden)"#' "$HOME/.config/godot/editor_settings-4.4.tres"
+
+      - name: Import project resources
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          "$GODOT_BIN" --headless --path . --import 2>&1 | tee build/import.log
+
+      - name: Validate project (headless)
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Loads the main scene for a few frames; any engine/script error fails the build.
+          "$GODOT_BIN" --headless --path . --quit-after 5 2>&1 | tee build/validate.log
+          if grep -E "^(ERROR|SCRIPT ERROR|Parse Error)" build/validate.log; then
+            echo "::error::Headless validation reported errors (see lines above and the build-logs artifact)."
+            exit 1
+          fi
+          echo "Headless validation passed."
+
+      - name: Export debug APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$GODOT_BIN" --headless --path . --export-debug "${EXPORT_PRESET}" "${APK_PATH}" 2>&1 | tee build/export.log
+          if [ ! -s "${APK_PATH}" ]; then
+            echo "::error::Export produced no APK at ${APK_PATH}. Check build/export.log (build-logs artifact) for missing templates, SDK components or export settings."
+            exit 1
+          fi
+          unzip -tq "${APK_PATH}" > /dev/null || { echo "::error::${APK_PATH} is not a valid APK/zip file."; exit 1; }
+          ls -lh "${APK_PATH}"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: EdoGTA-debug-apk
+          path: build/EdoGTA-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: EdoGTA-build-logs
+          path: build/*.log
+          if-no-files-found: ignore
+          retention-days: 7

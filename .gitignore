@@ -1,0 +1,14 @@
+# Godot caches and generated import data
+.godot/
+*.translation
+
+# Build output (APK is produced by GitHub Actions)
+build/
+
+# Never commit signing material or local editor config
+*.keystore
+*.jks
+*.apk
+*.aab
+editor_settings-*.tres
+.mono/

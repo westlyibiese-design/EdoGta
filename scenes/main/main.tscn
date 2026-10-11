@@ -1,0 +1,67 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/environment/test_road.tscn" id="1_road"]
+[ext_resource type="PackedScene" path="res://scenes/player/placeholder_car.tscn" id="2_car"]
+
+[sub_resource type="ProceduralSkyMaterial" id="Sky_material"]
+sky_top_color = Color(0.26, 0.5, 0.82, 1)
+sky_horizon_color = Color(0.65, 0.78, 0.9, 1)
+ground_bottom_color = Color(0.3, 0.4, 0.3, 1)
+ground_horizon_color = Color(0.65, 0.78, 0.9, 1)
+
+[sub_resource type="Sky" id="Sky_1"]
+sky_material = SubResource("Sky_material")
+
+[sub_resource type="Environment" id="Environment_1"]
+background_mode = 2
+sky = SubResource("Sky_1")
+ambient_light_source = 3
+tonemap_mode = 2
+fog_enabled = true
+fog_light_color = Color(0.65, 0.78, 0.9, 1)
+fog_density = 0.004
+
+[sub_resource type="LabelSettings" id="Label_settings"]
+font_size = 28
+outline_size = 6
+outline_color = Color(0, 0, 0, 0.8)
+
+[node name="Main" type="Node3D"]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_1")
+
+[node name="SunLight" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.819152, 0.439385, -0.368688, 0.000000, 0.642788, 0.766044, 0.573576, -0.627507, 0.526541, 0, 20, 0)
+light_energy = 1.1
+shadow_enabled = true
+directional_shadow_mode = 0
+directional_shadow_max_distance = 80.0
+
+[node name="TestRoad" parent="." instance=ExtResource("1_road")]
+
+[node name="VehicleSpawn" type="Marker3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, 0)
+
+[node name="PlaceholderCar" parent="." instance=ExtResource("2_car")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, 0)
+
+[node name="CameraRig" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, 0)
+
+[node name="Camera3D" type="Camera3D" parent="CameraRig"]
+transform = Transform3D(1, 0, 0, 0, 0.978148, 0.207912, 0, -0.207912, 0.978148, 0, 3.2, 7.5)
+current = true
+fov = 70.0
+far = 500.0
+
+[node name="HUD" type="CanvasLayer" parent="."]
+
+[node name="TitleLabel" type="Label" parent="HUD"]
+offset_left = 24.0
+offset_top = 16.0
+offset_right = 640.0
+offset_bottom = 90.0
+text = "EdoGTA
+Phase 1A foundation - vehicle does not drive yet"
+label_settings = SubResource("Label_settings")
