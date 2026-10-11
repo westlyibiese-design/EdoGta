@@ -1,4 +1,6 @@
-[gd_scene load_steps=14 format=3]
+[gd_scene load_steps=13 format=3]
+
+[ext_resource type="Script" path="res://scripts/vehicle/car_controller.gd" id="1_ctrl"]
 
 [sub_resource type="StandardMaterial3D" id="Mat_paint"]
 albedo_color = Color(0.78, 0.12, 0.12, 1)
@@ -54,7 +56,13 @@ rings = 1
 size = Vector3(1.8, 1.08, 4.2)
 
 [node name="PlaceholderCar" type="VehicleBody3D"]
-freeze = true
+mass = 1000.0
+center_of_mass_mode = 1
+center_of_mass = Vector3(0, 0.3, 0)
+can_sleep = false
+linear_damp = 0.05
+angular_damp = 1.0
+script = ExtResource("1_ctrl")
 
 [node name="Collision" type="CollisionShape3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.89, 0)
@@ -86,22 +94,64 @@ mesh = SubResource("Mesh_taillight")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.6, 0.72, 2.11)
 mesh = SubResource("Mesh_taillight")
 
-[node name="Wheels" type="Node3D" parent="."]
+[node name="WheelFrontLeft" type="VehicleWheel3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.92, 0.55, -1.35)
+use_as_traction = false
+use_as_steering = true
+wheel_roll_influence = 0.1
+wheel_radius = 0.35
+wheel_rest_length = 0.2
+wheel_friction_slip = 10.5
+suspension_travel = 0.2
+suspension_stiffness = 50.0
 
-[node name="WheelFrontLeft" type="MeshInstance3D" parent="Wheels"]
-transform = Transform3D(0, 1, 0, -1, 0, 0, 0, 0, 1, -0.92, 0.35, -1.35)
+[node name="Mesh" type="MeshInstance3D" parent="WheelFrontLeft"]
+transform = Transform3D(0, 1, 0, -1, 0, 0, 0, 0, 1, 0, 0, 0)
 mesh = SubResource("Mesh_wheel")
 
-[node name="WheelFrontRight" type="MeshInstance3D" parent="Wheels"]
-transform = Transform3D(0, 1, 0, -1, 0, 0, 0, 0, 1, 0.92, 0.35, -1.35)
+[node name="WheelFrontRight" type="VehicleWheel3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.92, 0.55, -1.35)
+use_as_traction = false
+use_as_steering = true
+wheel_roll_influence = 0.1
+wheel_radius = 0.35
+wheel_rest_length = 0.2
+wheel_friction_slip = 10.5
+suspension_travel = 0.2
+suspension_stiffness = 50.0
+
+[node name="Mesh" type="MeshInstance3D" parent="WheelFrontRight"]
+transform = Transform3D(0, 1, 0, -1, 0, 0, 0, 0, 1, 0, 0, 0)
 mesh = SubResource("Mesh_wheel")
 
-[node name="WheelRearLeft" type="MeshInstance3D" parent="Wheels"]
-transform = Transform3D(0, 1, 0, -1, 0, 0, 0, 0, 1, -0.92, 0.35, 1.35)
+[node name="WheelRearLeft" type="VehicleWheel3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.92, 0.55, 1.35)
+use_as_traction = true
+use_as_steering = false
+wheel_roll_influence = 0.1
+wheel_radius = 0.35
+wheel_rest_length = 0.2
+wheel_friction_slip = 10.5
+suspension_travel = 0.2
+suspension_stiffness = 50.0
+
+[node name="Mesh" type="MeshInstance3D" parent="WheelRearLeft"]
+transform = Transform3D(0, 1, 0, -1, 0, 0, 0, 0, 1, 0, 0, 0)
 mesh = SubResource("Mesh_wheel")
 
-[node name="WheelRearRight" type="MeshInstance3D" parent="Wheels"]
-transform = Transform3D(0, 1, 0, -1, 0, 0, 0, 0, 1, 0.92, 0.35, 1.35)
+[node name="WheelRearRight" type="VehicleWheel3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.92, 0.55, 1.35)
+use_as_traction = true
+use_as_steering = false
+wheel_roll_influence = 0.1
+wheel_radius = 0.35
+wheel_rest_length = 0.2
+wheel_friction_slip = 10.5
+suspension_travel = 0.2
+suspension_stiffness = 50.0
+
+[node name="Mesh" type="MeshInstance3D" parent="WheelRearRight"]
+transform = Transform3D(0, 1, 0, -1, 0, 0, 0, 0, 1, 0, 0, 0)
 mesh = SubResource("Mesh_wheel")
 
 [node name="CameraMount" type="Marker3D" parent="."]

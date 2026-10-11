@@ -1,0 +1,62 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/touch_controls.gd" id="1_ctrl"]
+[ext_resource type="Script" path="res://scripts/ui/touch_pad_button.gd" id="2_btn"]
+
+[sub_resource type="LabelSettings" id="Label_speed"]
+font_size = 26
+outline_size = 5
+outline_color = Color(0, 0, 0, 0.8)
+
+[node name="TouchControls" type="CanvasLayer"]
+script = ExtResource("1_ctrl")
+
+[node name="SpeedLabel" type="Label" parent="."]
+offset_left = 24.0
+offset_top = 16.0
+offset_right = 224.0
+offset_bottom = 56.0
+text = "0 km/h"
+label_settings = SubResource("Label_speed")
+
+[node name="SteerLeft" type="TouchScreenButton" parent="."]
+position = Vector2(150, 570)
+shape_visible = false
+passby_press = true
+action = "steer_left"
+script = ExtResource("2_btn")
+glyph = 0
+
+[node name="SteerRight" type="TouchScreenButton" parent="."]
+position = Vector2(390, 570)
+shape_visible = false
+passby_press = true
+action = "steer_right"
+script = ExtResource("2_btn")
+glyph = 1
+
+[node name="Brake" type="TouchScreenButton" parent="."]
+position = Vector2(880, 570)
+shape_visible = false
+passby_press = true
+action = "brake_reverse"
+script = ExtResource("2_btn")
+glyph = 3
+caption = "BRAKE / REV"
+
+[node name="Accelerate" type="TouchScreenButton" parent="."]
+position = Vector2(1120, 560)
+shape_visible = false
+passby_press = true
+action = "accelerate"
+script = ExtResource("2_btn")
+glyph = 2
+caption = "GAS"
+
+[node name="Reset" type="TouchScreenButton" parent="."]
+position = Vector2(1220, 60)
+shape_visible = false
+action = "reset_vehicle"
+script = ExtResource("2_btn")
+glyph = 4
+caption = "RESET"

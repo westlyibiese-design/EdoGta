@@ -2,14 +2,14 @@
 
 EdoGTA is a 3D open-world driving game for Android, inspired by the free-roaming driving of GTA. "Edo" is Edo State, Nigeria - the game will grow into a driving environment inspired by Nigerian roads and towns.
 
-**Current status: Phase 1A (project foundation).** The project opens, shows a small test road with a placeholder car and a third-person camera, and has an Android export preset plus a GitHub Actions workflow. **The placeholder car does not drive yet** - there is no driving physics, no controls and no follow camera. Those are Phase 1B.
+**Current status: Phase 1B (playable driving prototype).** The placeholder car now drives along the test road with acceleration, braking, reverse and steering, using Android touch buttons (or the keyboard on desktop) and a smooth third-person follow camera. Phase 1A's project foundation, Android export preset and GitHub Actions workflow are unchanged. **Nothing from Phase 1B has been run in Godot, built into an APK or tested on a device yet** - see "What was verified in Phase 1B".
 
 ## Pinned versions and identifiers
 
 | Item | Value |
 |---|---|
 | Engine | Godot **4.4.1-stable** (standard build, not Mono/.NET) |
-| Language | GDScript (no scripts exist yet) |
+| Language | GDScript (Phase 1B scripts under `scripts/`) |
 | Renderer | Mobile (Vulkan Mobile) |
 | Display name | EdoGTA |
 | Android package ID | `com.westly.edogta` |
@@ -32,13 +32,18 @@ EdoGta/
 ├── .github/workflows/android-build.yml   CI: builds a debug APK
 ├── assets/
 │   └── icon.png                          App icon (512x512, transparent corners)
-└── scenes/
-    ├── main/main.tscn                    Main scene (entry point)
-    ├── environment/test_road.tscn        Ground, road, markings, trees, buildings
-    └── player/placeholder_car.tscn       Placeholder car
+├── scenes/
+│   ├── main/main.tscn                    Main scene (entry point)
+│   ├── environment/test_road.tscn        Ground, road, markings, trees, buildings
+│   ├── player/placeholder_car.tscn       Drivable placeholder car (VehicleBody3D + 4 VehicleWheel3D)
+│   └── ui/touch_controls.tscn            Touch HUD: steering, accelerator, brake/reverse, reset, speed readout
+└── scripts/
+    ├── vehicle/car_controller.gd         Driving controller (attached to PlaceholderCar)
+    ├── camera/follow_camera.gd           Smooth follow camera (attached to CameraRig)
+    └── ui/
+        ├── touch_controls.gd             Lays out the buttons for any landscape size; speed readout
+        └── touch_pad_button.gd           One round TouchScreenButton (draws itself, feeds an input action)
 ```
-
-There is deliberately **no `scripts/` folder yet**: Phase 1A needs no scripts, and empty folders are not tracked by Git. Phase 1B should create `scripts/` when it adds its first script.
 
 ## Main scene: `scenes/main/main.tscn`
 
@@ -49,13 +54,14 @@ Main (Node3D)
 ├── WorldEnvironment          procedural sky, fog, filmic tonemap
 ├── SunLight                  DirectionalLight3D, orthogonal shadow, 80 m shadow distance
 ├── TestRoad                  instance of scenes/environment/test_road.tscn
-├── VehicleSpawn (Marker3D)   the starting position: (3, 0, 0)
-├── PlaceholderCar            instance of scenes/player/placeholder_car.tscn, placed at the spawn
-├── CameraRig (Node3D)        sits at the spawn position; Phase 1B attaches the follow script here
-│   └── Camera3D              3.2 m up, 7.5 m behind, pitched 12 degrees down, looking toward -Z
-└── HUD (CanvasLayer)
-    └── TitleLabel            "EdoGTA - Phase 1A..." text; remove or replace in Phase 1B
+├── VehicleSpawn (Marker3D)   the starting position: (3, 0, 0); the car spawns and resets here
+├── PlaceholderCar            instance of scenes/player/placeholder_car.tscn (spawn_marker -> ../VehicleSpawn)
+├── CameraRig (Node3D)        follow_camera.gd, target_path -> ../PlaceholderCar
+│   └── Camera3D              3.2 m up, 7.5 m behind, pitched 12 degrees down; the only camera, `current`
+└── TouchControls             instance of scenes/ui/touch_controls.tscn (CanvasLayer), vehicle -> ../PlaceholderCar
 ```
+
+Phase 1B removed the Phase 1A `HUD/TitleLabel` ("vehicle does not drive yet"), because it was no longer true.
 
 Conventions used everywhere:
 
@@ -68,31 +74,85 @@ Conventions used everywhere:
 ## Placeholder car: `scenes/player/placeholder_car.tscn`
 
 ```
-PlaceholderCar (VehicleBody3D, freeze = true)   origin = ground contact point under the car's centre
+PlaceholderCar (VehicleBody3D, car_controller.gd)   origin = ground contact point under the car's centre
 ├── Collision (CollisionShape3D)                one box, 1.8 x 1.08 x 4.2 m
 ├── Visual (Node3D)
 │   ├── Body, Cabin                             red body, dark cabin (cabin sits toward the rear)
 │   ├── HeadlightLeft/Right                     pale-yellow glow, at the FRONT (-Z)
 │   └── TaillightLeft/Right                     red glow, at the REAR (+Z)
-├── Wheels (Node3D)
-│   └── WheelFrontLeft / FrontRight / RearLeft / RearRight    plain MeshInstance3D cylinders
-└── CameraMount (Marker3D)                      documented camera attachment point (same offset as the main camera)
+├── WheelFrontLeft / WheelFrontRight            VehicleWheel3D, steering; each has a "Mesh" child (the tyre cylinder)
+├── WheelRearLeft / WheelRearRight              VehicleWheel3D, driven (traction); each has a "Mesh" child
+└── CameraMount (Marker3D)                      documented camera attachment point (not used by the follow camera)
 ```
 
-The root is a `VehicleBody3D` because it is Godot's built-in node for car-style physics. It is **frozen** so the placeholder stays still. The project uses Godot's default 3D physics engine; check the Godot 4.4 documentation before switching physics engines if you rely on `VehicleBody3D`.
+The root is a `VehicleBody3D`, Godot's built-in raycast-vehicle node, so the Phase 1A root type was kept. The wheels are **direct children of the body** (a `VehicleWheel3D` only works when its parent is the `VehicleBody3D`), so the Phase 1A `Wheels` container node was removed. The project uses Godot's default 3D physics engine; check the Godot 4.4 documentation before switching physics engines if you rely on `VehicleBody3D`.
 
-## Continuing in Phase 1B
+## Phase 1B: driving prototype
 
-Start from these exact points. Keep the existing node names so nothing else needs restructuring.
+### Controls
 
-1. **Driving**: attach a script to `PlaceholderCar` (create `scripts/`, e.g. `scripts/car_controller.gd`). Set `freeze = false`. Replace the four plain wheel `MeshInstance3D` nodes under `Wheels` with `VehicleWheel3D` nodes at the same positions (`x = +-0.92`, `y = 0.35`, `z = +-1.35`, radius 0.35) and move each cylinder mesh underneath as a child. Set mass, centre of mass and suspension. The visual collision box can be refined.
-2. **Follow camera**: attach a script to `CameraRig` that follows `PlaceholderCar`'s position/heading. `Camera3D` keeps its local offset (0, 3.2, 7.5, pitch -12 degrees). `PlaceholderCar/CameraMount` marks the same offset if you prefer to parent a camera to the car.
-3. **Mobile controls**: add a `CanvasLayer` UI under `Main` (next to `HUD`) and an input map in `project.godot`. No input actions are defined yet.
-4. **Spawn**: read `Main/VehicleSpawn` instead of hard-coding the start position. The car and `CameraRig` currently duplicate its transform in `main.tscn`.
-5. **Environment**: `scenes/environment/test_road.tscn` can be extended (collision for scenery, more road). Its scenery buffers were generated, not hand-placed; edit the scene in the Godot editor rather than by hand.
-6. **HUD**: `HUD/TitleLabel` is a Phase 1A label and can be deleted.
+All input goes through **named input actions** (defined in `project.godot`). The touch buttons are `TouchScreenButton` nodes whose `action` is set to the same names, so touch and keyboard share one path.
 
-Files Phase 1B will most likely modify: `scenes/main/main.tscn`, `scenes/player/placeholder_car.tscn`, `project.godot` (input map), and new files under `scripts/`.
+| Action | Keyboard | Touch button (landscape HUD) |
+|---|---|---|
+| `accelerate` | W or Up Arrow | GAS (bottom-right, large) |
+| `brake_reverse` | S or Down Arrow | BRAKE / REV (bottom-right, left of GAS) |
+| `steer_left` | A or Left Arrow | left arrow (bottom-left) |
+| `steer_right` | D or Right Arrow | right arrow (bottom-left) |
+| `reset_vehicle` | R | RESET (small, top-right) |
+
+Buttons act while held, stop when released, work with several fingers at once, and `passby_press` lets a thumb slide from one button to its neighbour. The default `ui_left`/`ui_right`/`ui_up`/`ui_down` actions also use the arrow keys, but nothing in the project uses `ui_*`, so there is no conflict. To try the touch buttons with a mouse on desktop, enable *Project Settings > Input Devices > Pointing > Emulate Touch From Mouse* locally (not set in the project).
+
+### Brake / reverse behaviour
+
+Speed is measured along the car's own forward (-Z) direction.
+
+- Brake held while moving forward faster than `reverse_engage_speed` (1 m/s): **brakes**.
+- Brake held at or below that speed: **reverses**, up to `max_reverse_speed`.
+- Accelerator held while moving backwards faster than 1 m/s: brakes first, then drives forward.
+- Both held: brakes (the car stops; it does not reverse).
+- Nothing held: light "coast" braking (rolling resistance and engine braking), so the car slows smoothly instead of coasting forever.
+
+Steering is limited by speed: the wheel angle shrinks as speed rises so the car never turns harder than `max_lateral_acceleration`. Throttle and brake ramp up and down instead of switching instantly.
+
+### Reset
+
+Press **R** or touch **RESET**. The car returns to `Main/VehicleSpawn`, stopped, with straight wheels, and the camera snaps behind it. The car also resets automatically if it falls below `fall_reset_height` (-10 m). There is no automatic flip detection: if the car ends up on its roof, use Reset.
+
+### Tuning
+
+Everything important is an exported variable on `PlaceholderCar` (Inspector, or `placeholder_car.tscn`). Defaults are for the 1000 kg car in the scene.
+
+| Variable (`car_controller.gd`) | Default | Meaning |
+|---|---|---|
+| `acceleration_force` | 45 | `engine_force` per driven wheel (Godot docs suggest 25-50 for 1000 kg) |
+| `max_forward_speed` / `max_reverse_speed` | 22 / 7 m/s | Speed limits; power fades out over the last `top_speed_taper` (15%) |
+| `reverse_force_scale` | 0.7 | Reverse power as a fraction of forward |
+| `brake_strength` | 22 | `brake` value for full braking (Godot docs suggest 25-30 for hard braking at 1000 kg) |
+| `coast_brake` | 5 | Light braking with no pedal held |
+| `max_steer_angle_deg` / `min_steer_angle_deg` | 32 / 2.5 | Steering at low speed / floor at high speed |
+| `max_lateral_acceleration` | 10 m/s^2 | Cornering limit that shrinks steering at speed |
+| `steer_speed` / `steer_return_speed` | 2.5 / 4 rad/s | How fast the wheels turn / recentre |
+| `throttle_rise_rate` / `throttle_fall_rate` | 3 / 6 per s | Throttle smoothing |
+| `spawn_marker`, `spawn_lift`, `fall_reset_height` | `../VehicleSpawn`, 0.2 m, -10 m | Spawn and reset |
+
+Physics values live in the scene: `mass` 1000, custom centre of mass (0, 0.3, 0) to resist rolling, `angular_damp` 1.0, and per wheel `suspension_stiffness` 50, `wheel_friction_slip` 10.5, `wheel_roll_influence` 0.1. These are first-guess values: they follow Godot's documented ranges but have **not** been run, so expect to tune them after the first test drive.
+
+### Camera
+
+`CameraRig` follows `PlaceholderCar`'s position and heading with exponential smoothing (`position_follow_speed` 10, `heading_follow_speed` 3.5), inside `_physics_process` so it stays in step with the car. The `Camera3D` child keeps its Phase 1A offset. At speed the camera trails slightly behind. There is no camera collision in this phase.
+
+### The yellow shape
+
+The yellow rectangle under the spawn point is `TestRoad/Markings/StartPad`: an intentional 2.8 x 5.6 m start pad (a flat `MeshInstance3D`, 12 mm thick, no collision), placed in Phase 1A under the spawn position. It is not a bug and was left unchanged.
+
+## Continuing after Phase 1B
+
+1. **Tune on a device.** Acceleration, braking, steering and suspension are untested first guesses (see "Tuning").
+2. **Detailed car**: replace the placeholder meshes under `Visual` and each wheel's `Mesh` child; keep the `VehicleWheel3D` nodes, their radius (0.35) and positions in sync with the new model.
+3. **Environment**: trees and buildings have no collision, and the road is a straight 300 m strip. Build the real world in later phases.
+4. **Camera**: add camera collision and speed-based field of view if wanted.
+5. **Safe areas**: the HUD uses simple margins; add notch/cut-out safe-area handling if a device clips the buttons.
 
 ## Android configuration
 
@@ -152,9 +212,9 @@ The first APK signed with the permanent key will not install over an older APK s
 - Optional: open the project once in the Godot 4.4.1 editor and commit the generated `assets/icon.png.import`; CI creates it automatically otherwise.
 - Optional: set custom adaptive launcher icons in the export preset (the PNG icon is used for now).
 
-## Deliberately reserved for Phase 1B (not in this phase)
+## Deliberately not in Phase 1B
 
-Vehicle movement and driving physics, acceleration/braking/reversing/steering, mobile touch controls, a working follow camera. Also not planned for this phase: the detailed Toyota Camry model, openable doors, a large map, traffic or pedestrians, missions, saving, online features or monetisation.
+The detailed Toyota Camry model, openable doors, a large map, traffic or pedestrians, weapons, missions, saving, online features or monetisation.
 
 ## What was verified in Phase 1A
 
@@ -162,3 +222,16 @@ Vehicle movement and driving physics, acceleration/braking/reversing/steering, m
 - Godot accepted `export_presets.cfg` (preset "Android"), and with a stand-in SDK and templates its export validation passed.
 - The template download URL, checksum file and archive layout used by the workflow were checked against the official 4.4.1 release.
 - **Not verified:** a real Android export or APK (the Android SDK and full templates were not installed locally), the GitHub Actions run itself, and on-device behaviour.
+
+## What was verified in Phase 1B
+
+Checked (static, scripted, no Godot available in the authoring environment):
+
+- All `res://` paths in the modified scenes and scripts exist; every `ExtResource`/`SubResource` id resolves; every node's parent is declared; `load_steps` values match.
+- The `$Node` lookups in `touch_controls.gd` exist in `touch_controls.tscn`.
+- Every input action used by a script or button (`accelerate`, `brake_reverse`, `steer_left`, `steer_right`, `reset_vehicle`) is defined in `project.godot`, and none is unused.
+- GDScript files use tab indentation consistently and have balanced brackets.
+- `Camera3D` under `CameraRig` is the only camera and is `current`. The Godot version pin (4.4.1), the Android export preset and the workflow were not modified.
+- Wheel geometry: wheel centres sit 0.35 m (the tyre radius) above the road at suspension rest, and the collision box bottom is 0.35 m above the body origin.
+
+**Not verified:** the GDScript has not been parsed or run by Godot (so no headless validation, no scene load, no physics behaviour), no APK was built, the GitHub Actions workflow was not run, and nothing was tested on a device or in the desktop editor. The workflow's headless validation step will be the first real parse check.
