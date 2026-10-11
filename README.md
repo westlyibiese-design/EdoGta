@@ -91,7 +91,7 @@ The root is a `VehicleBody3D`, Godot's built-in raycast-vehicle node, so the Pha
 
 ### Controls
 
-All input goes through **named input actions** (defined in `project.godot`). The touch buttons are `TouchScreenButton` nodes whose `action` is set to the same names, so touch and keyboard share one path.
+All input goes through **named input actions** (defined in `project.godot`). `touch_controls.gd` tracks each finger itself (`InputEventScreenTouch` / `InputEventScreenDrag`, one finger index per button) and presses/releases the matching action with `Input.action_press` / `action_release`, so touch and keyboard share one path.
 
 | Action | Keyboard | Touch button (landscape HUD) |
 |---|---|---|
@@ -101,7 +101,7 @@ All input goes through **named input actions** (defined in `project.godot`). The
 | `steer_right` | D or Right Arrow | right arrow (bottom-left) |
 | `reset_vehicle` | R | RESET (small, top-right) |
 
-Buttons act while held, stop when released, work with several fingers at once, and `passby_press` lets a thumb slide from one button to its neighbour. The default `ui_left`/`ui_right`/`ui_up`/`ui_down` actions also use the arrow keys, but nothing in the project uses `ui_*`, so there is no conflict. To try the touch buttons with a mouse on desktop, enable *Project Settings > Input Devices > Pointing > Emulate Touch From Mouse* locally (not set in the project).
+Buttons act while held, stop when released, work with several fingers at once, and a thumb can slide from one button to its neighbour (not onto RESET). Buttons are released if the app loses focus. The default `ui_left`/`ui_right`/`ui_up`/`ui_down` actions also use the arrow keys, but nothing in the project uses `ui_*`, so there is no conflict. To try the touch buttons with a mouse on desktop, enable *Project Settings > Input Devices > Pointing > Emulate Touch From Mouse* locally (not set in the project).
 
 ### Brake / reverse behaviour
 
@@ -121,22 +121,26 @@ Press **R** or touch **RESET**. The car returns to `Main/VehicleSpawn`, stopped,
 
 ### Tuning
 
-Everything important is an exported variable on `PlaceholderCar` (Inspector, or `placeholder_car.tscn`). Defaults are for the 1000 kg car in the scene.
+Everything important is an exported variable on `PlaceholderCar` (Inspector, or `placeholder_car.tscn`). Forward thrust and braking are applied as real forces (`apply_central_force`, in m/s^2); `engine_force` and `brake` stay at 0. Thrust only applies while at least one wheel touches the ground.
 
 | Variable (`car_controller.gd`) | Default | Meaning |
 |---|---|---|
-| `acceleration_force` | 45 | `engine_force` per driven wheel (Godot docs suggest 25-50 for 1000 kg) |
-| `max_forward_speed` / `max_reverse_speed` | 22 / 7 m/s | Speed limits; power fades out over the last `top_speed_taper` (15%) |
-| `reverse_force_scale` | 0.7 | Reverse power as a fraction of forward |
-| `brake_strength` | 22 | `brake` value for full braking (Godot docs suggest 25-30 for hard braking at 1000 kg) |
-| `coast_brake` | 5 | Light braking with no pedal held |
+| `acceleration` | 4 m/s^2 | Full-throttle acceleration (about 0-80 km/h in 6-7 s) |
+| `max_forward_speed` / `max_reverse_speed` | 22 / 7 m/s | Speed limits; thrust fades out over the last `top_speed_taper` (15%) |
+| `reverse_acceleration_scale` | 0.6 | Reverse acceleration as a fraction of forward |
+| `brake_deceleration` | 9 m/s^2 | Full braking |
+| `coast_deceleration` | 1 m/s^2 | Slowing with no pedal held |
 | `max_steer_angle_deg` / `min_steer_angle_deg` | 32 / 2.5 | Steering at low speed / floor at high speed |
 | `max_lateral_acceleration` | 10 m/s^2 | Cornering limit that shrinks steering at speed |
 | `steer_speed` / `steer_return_speed` | 2.5 / 4 rad/s | How fast the wheels turn / recentre |
 | `throttle_rise_rate` / `throttle_fall_rate` | 3 / 6 per s | Throttle smoothing |
 | `spawn_marker`, `spawn_lift`, `fall_reset_height` | `../VehicleSpawn`, 0.2 m, -10 m | Spawn and reset |
 
-Physics values live in the scene: `mass` 1000, custom centre of mass (0, 0.3, 0) to resist rolling, `angular_damp` 1.0, and per wheel `suspension_stiffness` 50, `wheel_friction_slip` 10.5, `wheel_roll_influence` 0.1. These are first-guess values: they follow Godot's documented ranges but have **not** been run, so expect to tune them after the first test drive.
+Physics values live in the scene: `mass` 1000, custom centre of mass (0, 0.3, 0) to resist rolling, `angular_damp` 1.0, and per wheel `suspension_stiffness` 50, `wheel_friction_slip` 10.5, `wheel_roll_influence` 0.1. These are first-guess values and have **not** been run in Godot.
+
+### Diagnostic readout
+
+The HUD shows a small status line under the speed: `gas`/`brake` (what the input actions read), `steer`, `throttle`, `thrust` (m/s^2 being applied), `speed`, and `wheels on ground n/4`. It is on by default for testing; turn it off with `show_debug` on the `TouchControls` node. If GAS does nothing: `gas 0.0` while pressed means the touch is not reaching the action; `gas 1.0` but `wheels on ground 0/4` means the wheels are not touching the road; `gas 1.0`, wheels 4/4, thrust above 0 but speed 0 means something is physically holding the car.
 
 ### Camera
 
@@ -146,9 +150,16 @@ Physics values live in the scene: `mass` 1000, custom centre of mass (0, 0.3, 0)
 
 The yellow rectangle under the spawn point is `TestRoad/Markings/StartPad`: an intentional 2.8 x 5.6 m start pad (a flat `MeshInstance3D`, 12 mm thick, no collision), placed in Phase 1A under the spawn position. It is not a bug and was left unchanged.
 
+## Phase 1B fix 1 (car did not move on the phone)
+
+The first Phase 1B build installed fine but the car stayed at 0 km/h. Without the ability to run Godot, the two weak points found by inspection were fixed rather than guessed at:
+
+1. **Power**: acceleration relied on `VehicleBody3D.engine_force`, whose scaling is unclear (the docs only say "try 25-50" for 1000 kg) and was probably far too weak. Thrust and braking are now real forces in m/s^2.
+2. **Touch input**: buttons relied on `TouchScreenButton` hit-testing with no texture, which could not be verified. Fingers are now tracked directly from screen-touch events. The diagnostic readout above shows which of the two (or neither) was the cause.
+
 ## Continuing after Phase 1B
 
-1. **Tune on a device.** Acceleration, braking, steering and suspension are untested first guesses (see "Tuning").
+1. **Tune on a device.** Acceleration, braking, steering and suspension are untested first guesses (see "Tuning"). Turn off `show_debug` when done.
 2. **Detailed car**: replace the placeholder meshes under `Visual` and each wheel's `Mesh` child; keep the `VehicleWheel3D` nodes, their radius (0.35) and positions in sync with the new model.
 3. **Environment**: trees and buildings have no collision, and the road is a straight 300 m strip. Build the real world in later phases.
 4. **Camera**: add camera collision and speed-based field of view if wanted.
@@ -229,6 +240,7 @@ Checked (static, scripted, no Godot available in the authoring environment):
 
 - All `res://` paths in the modified scenes and scripts exist; every `ExtResource`/`SubResource` id resolves; every node's parent is declared; `load_steps` values match.
 - The `$Node` lookups in `touch_controls.gd` exist in `touch_controls.tscn`.
+- (Fix 1) The same checks were re-run after the controller and touch rewrite; no references to the removed `acceleration_force`, `brake_strength` or `coast_brake` remain.
 - Every input action used by a script or button (`accelerate`, `brake_reverse`, `steer_left`, `steer_right`, `reset_vehicle`) is defined in `project.godot`, and none is unused.
 - GDScript files use tab indentation consistently and have balanced brackets.
 - `Camera3D` under `CameraRig` is the only camera and is `current`. The Godot version pin (4.4.1), the Android export preset and the workflow were not modified.

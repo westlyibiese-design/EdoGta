@@ -1,10 +1,8 @@
-extends TouchScreenButton
-## One round on-screen button for the Phase 1B touch HUD.
+extends Node2D
+## One round on-screen button for the touch HUD.
 ##
-## A TouchScreenButton with its `action` set presses/releases that named input
-## action for as long as a finger is on it, with real multi-touch, so steering and
-## pedals can be held at the same time. The circle is the hit area; this script
-## only draws it (no textures needed) and keeps the hit shape in sync with the radius.
+## This node only draws itself and answers "is this touch inside me?".
+## touch_controls.gd tracks the fingers and presses/releases `action`.
 
 enum Glyph { LEFT, RIGHT, ACCELERATE, BRAKE, RESET }
 
@@ -12,30 +10,37 @@ enum Glyph { LEFT, RIGHT, ACCELERATE, BRAKE, RESET }
 @export var glyph: Glyph = Glyph.LEFT
 ## Small text under the arrow (for RESET it is drawn in the centre).
 @export var caption: String = ""
+## The named input action this button presses while a finger is on it.
+@export var action: String = ""
+## If true, a finger that slides in from another button presses this one too.
+@export var slide_in: bool = true
 
 var radius: float = 70.0
+## Set by touch_controls.gd: true while a finger holds this button.
+var touch_down: bool = false
 
 var _lit: bool = false
 
 
-func _ready() -> void:
-	shape_visible = false
-	set_radius(radius)
-
-
 func set_radius(value: float) -> void:
 	radius = value
-	var circle: CircleShape2D = shape as CircleShape2D
-	if circle == null:
-		circle = CircleShape2D.new()
-		shape = circle
-	circle.radius = radius
 	queue_redraw()
 
 
+## True if a touch/drag event is inside the circle (small extra margin for thumbs).
+func contains_event(event: InputEvent) -> bool:
+	var local_event: InputEvent = make_input_local(event)
+	var point: Vector2 = Vector2.INF
+	if local_event is InputEventScreenTouch:
+		point = (local_event as InputEventScreenTouch).position
+	elif local_event is InputEventScreenDrag:
+		point = (local_event as InputEventScreenDrag).position
+	return point.length() <= radius * 1.05
+
+
 func _process(_delta: float) -> void:
-	# Also lights up when the matching keyboard key is held.
-	var lit: bool = is_pressed() or Input.is_action_pressed(action)
+	# Lights up for touch and for the matching keyboard key.
+	var lit: bool = action != "" and Input.is_action_pressed(action)
 	if lit != _lit:
 		_lit = lit
 		queue_redraw()
